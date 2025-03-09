@@ -24,6 +24,9 @@ class AttendenceController:
 
         userlist = os.listdir('static/faces')
         for user in userlist:
+            if user == ".gitignore":
+                continue
+
             for imgname in os.listdir(f'static/faces/{user}'):
                 img = cv2.imread(f'static/faces/{user}/{imgname}')
                 resized_face = cv2.resize(img, (50, 50))
@@ -72,28 +75,33 @@ class AttendenceController:
             raise AppException(*AppError.API_PAYLOAD_NOT_FOUND)
         
 
-        print(date)
-        attr = Attendence.objects.filter(date = date).values()
-        students = Student.objects.values()
-        # attr = [i for i in range(1, 25) ]
-        # students = [ {'name': f'studnet_{i}' , 'id': i} for i in range(1, 40) ]
-
+        attend = Attendence.objects.filter(date = date).values("student_id")
         data = {
-            'attendence': list(attr),
-            'students': list(students)
+            'attendence': [],
+            'students': []
         }
+
+        if attend:
+            students = Student.objects.values()
+            data['attendence'] = list(map(lambda x: x['student_id'], attend))
+            data['students']= list(students)
 
         return data
     
 
 
     def register(self, student_images: dict, student_data):
-        name = student_data['name']
-        roll_no = student_data['roll_no']
+        name = student_data['name'].strip()
+        roll_no = str(student_data['roll_no']).strip()
         print(f'Start with student {name} - {roll_no}')
 
+
+        if Student.objects.filter(roll_no = roll_no).exists():
+             raise AppException(*AppError.STUDENT_ALREADY_REGISTERD)
+
         face_counts = 0
-        folder = f'static/faces/{name}_{roll_no}'
+        stu_dir = f"{name}_{roll_no}"
+        folder = f'static/faces/{stu_dir}'
 
         if not os.path.isdir(folder):
             os.makedirs(folder)
@@ -142,10 +150,11 @@ class AttendenceController:
         stu = Student(
             name=name,
             roll_no=roll_no,
+            directory=stu_dir,
             created_at=date,
             updated_at=date
         )
-        # stu.save()
+        stu.save()
         print(f"Student {name} - {roll_no} is saved")
 
 
@@ -158,7 +167,38 @@ class AttendenceController:
             cv2.IMREAD_UNCHANGED
         )
 
-        student = self.detect_face(frame)
+        directory = self.detect_face(frame)
+        try:
+            directory = str(directory)
+        except:
+            raise AppException(*AppError.FACE_NOT_FOUND)
 
 
-        return student
+        student = Student.objects.filter(directory = directory).first()
+        if student:
+            result = {
+                'name': student.name,
+                'roll_no': student.roll_no
+            }
+
+            date = datetime.now()
+
+            if Attendence.objects.filter(student_id = student.id, date = date).exists():
+                result['msg'] = AppError.STUDENT_ALREADY_PRESENT[1]
+                return result
+                
+
+
+            att = Attendence(
+                student=student,
+                date=date.strftime("%Y-%m-%d"),
+                attend='FD',
+                created_at=date,
+                updated_at=date
+            )
+            att.save()
+
+            return result
+
+
+        raise AppException(*AppError.FACE_NOT_FOUND)

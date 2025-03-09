@@ -49,7 +49,8 @@ def check_attendence(request):
     try:
         controller = AttendenceController()
         result = controller.check_attandance(request.FILES)
-        return JsonResponse(data={'status': True, 'msg': 'Student registered successfully'})
+        result['status'] = True
+        return JsonResponse(data=result)
     except AppException as e:
         print(e)
         return JsonResponse(data={

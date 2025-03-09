@@ -7,7 +7,7 @@ class StudentAdmin(admin.ModelAdmin):
 
 
 class AttendenceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'date', 'attend', 'created_at', 'updated_at')
+    list_display = ('id', 'student_id', 'date', 'attend', 'created_at', 'updated_at')
  
 
 
