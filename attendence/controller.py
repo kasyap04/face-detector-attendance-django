@@ -82,7 +82,7 @@ class AttendenceController:
         }
 
         if attend:
-            students = Student.objects.values()
+            students = Student.objects.order_by('roll_no').values()
             data['attendence'] = list(map(lambda x: x['student_id'], attend))
             data['students']= list(students)
 
@@ -172,7 +172,6 @@ class AttendenceController:
             directory = str(directory)
         except:
             raise AppException(*AppError.FACE_NOT_FOUND)
-
 
         student = Student.objects.filter(directory = directory).first()
         if student:
