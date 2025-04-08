@@ -60,7 +60,7 @@ def check_attendence(request):
         })
 
     except Exception as e:
-        print(e)
+        raise
         return JsonResponse(status=500, data={
             'status': False,
             'code': 500,
