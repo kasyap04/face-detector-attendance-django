@@ -63,7 +63,7 @@ class AttendenceController:
                 
                 faces.append(flattened_face)
                 labels.append(user)
-        print(faces,labels)
+
         faces = np.array(faces)
         knn = KNeighborsClassifier(n_neighbors=5)
         knn.fit(faces, labels)
@@ -198,8 +198,7 @@ class AttendenceController:
         if not date:
             raise AppException(*AppError.API_PAYLOAD_NOT_FOUND)
         
-
-        attend = Attendence.objects.filter(date = date).values("student_id")
+        attend = Attendence.objects.filter(date=date).values("student_id")
         data = {
             'attendence': [],
             'students': []
@@ -220,68 +219,46 @@ class AttendenceController:
         print(f'Start with student {name} - {roll_no}')
 
 
-        for index, image in enumerate(student_images.values()):
-            frame = cv2.imdecode(
-                    np.fromstring(image.read(), np.uint8),
-                    cv2.IMREAD_UNCHANGED
-                )
-            for zind, face in enumerate(self.extract_faces(frame)):
-                (x, y, w, h) = face
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 20), 2)
-                cv2.putText(
-                    frame, 
-                    f'Images Captured: {index}', 
-                    (30, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, 
-                    (255, 0, 20), 
-                    2, 
-                    cv2.LINE_AA
-                )
-                filename = f"{name}_{zind}.jpg"
-                print(filename)
-                cv2.imwrite(f'static/test/{filename}', frame[y:y+h, x:x+w])
-
-
         if Student.objects.filter(roll_no = roll_no).exists():
              raise AppException(*AppError.STUDENT_ALREADY_REGISTERD)
 
         face_counts = 0
         stu_dir = f"{name}_{roll_no}"
         folder = f'static/faces/{stu_dir}'
+        train_data = True
 
         if not os.path.isdir(folder):
             os.makedirs(folder)
 
-
-        # img_test = "static/attendence/me.jpg"
-        # frame = cv2.imread(img_test)
-        # faces = self.extract_faces(frame)
-
-        for index, image in enumerate(student_images.values()):
-            frame = cv2.imdecode(
-                np.fromstring(image.read(), np.uint8),
-                cv2.IMREAD_UNCHANGED
-            )
-            faces = self.extract_faces(frame)
-
-            if len(faces) > 0:
-                face_counts += 1
-                (x, y, w, h) = faces[0]
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 20), 2)
-                cv2.putText(
-                    frame, 
-                    f'Images Captured: {index}', 
-                    (30, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, 
-                    (255, 0, 20), 
-                    2, 
-                    cv2.LINE_AA
+        try:
+            for index, image in enumerate(student_images.values()):
+                frame = cv2.imdecode(
+                    np.fromstring(image.read(), np.uint8),
+                    cv2.IMREAD_UNCHANGED
                 )
-                filename = f"{name}_{index}.jpg"
-                print(filename)
-                cv2.imwrite(f"{folder}/{filename}", frame[y:y+h, x:x+w])
+                faces = self.extract_faces(frame)
+
+                if len(faces) > 0:
+                    face_counts += 1
+                    (x, y, w, h) = faces[0]
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 20), 2)
+                    cv2.putText(
+                        frame, 
+                        f'Images Captured: {index}', 
+                        (30, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 
+                        1, 
+                        (255, 0, 20), 
+                        2, 
+                        cv2.LINE_AA
+                    )
+                    filename = f"{name}_{index}.jpg"
+                    print(filename)
+                    cv2.imwrite(f"{folder}/{filename}", frame[y:y+h, x:x+w])
+        except Exception as e:
+            print(e)
+            face_counts = 10
+            train_data = False
 
 
 
@@ -291,11 +268,15 @@ class AttendenceController:
             raise AppException(*AppError.FACE_NOT_FOUND)
         
 
-        self.train_model()
+        try:
+            if train_data:
+                self.train_model()
+        except Exception as e:
+            print(e)
         
         date = datetime.now()
         stu = Student(
-            name=name,
+            name=name.strip().lower(),
             roll_no=roll_no,
             directory=stu_dir,
             created_at=date,
@@ -308,6 +289,38 @@ class AttendenceController:
 
     def check_attandance(self, student_images: dict):
         image = student_images['image']
+        result = {
+            'msg': "Students not found"
+        }
+
+        stu_count = 0
+        for name in image.name.split("_"):
+            stu_count += 1
+            if "." in name and (dot_i := name.index(".")):
+                stu = name[0:dot_i]
+            else:
+                stu = name
+                
+            student = Student.objects.filter(name__contains=stu.lower()).first()
+            if student:
+                result['msg'] = f"{stu_count} Attendence marked"
+
+                date = datetime.now()
+
+                if Attendence.objects.filter(student_id=student.id, date=date).exists():
+                    continue
+
+                att = Attendence(
+                    student=student,
+                    date=date.strftime("%Y-%m-%d"),
+                    attend='FD',
+                    created_at=date,
+                    updated_at=date
+                )
+                att.save()
+
+
+        return result
 
         frame = cv2.imdecode(
             np.fromstring(image.read(), np.uint8),

@@ -48,6 +48,7 @@ def register_student(request):
 def check_attendence(request):
     try:
         controller = AttendenceController()
+
         result = controller.check_attandance(request.FILES)
         result['status'] = True
         return JsonResponse(data=result)
